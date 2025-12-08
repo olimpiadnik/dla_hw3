@@ -1,0 +1,3 @@
+defaults:
+  - instance_transforms@instance_transforms: instance_transforms/mel
+  - batch_transforms@batch_transforms: batch_transforms/example  

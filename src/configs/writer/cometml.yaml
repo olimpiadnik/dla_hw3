@@ -1,8 +1,17 @@
 _target_: src.logger.CometMLWriter
-project_name: "pytorch_template"
-workspace: null
-run_name: "testing"
+
+project_name: "dla_hw3_hifigan"   
+workspace: null                  
+run_name: "hifigan_baseline"
 mode: "online"
-loss_names: ["loss"] # which losses to log (useful for multi-loss tasks, s.a. GANs)
-log_checkpoints: False # set to True if you want to log save_dir with checkpoints to W&B
-id_length: 32 # length of the run_id
+
+loss_names:
+  - loss
+  - loss_d
+  - loss_g
+  - loss_mel
+  - loss_fm
+  - loss_adv
+
+log_checkpoints: True   # пусть Comet хранит чекпоинты
+id_length: 32
