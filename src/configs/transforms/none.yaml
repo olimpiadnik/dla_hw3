@@ -1,0 +1,8 @@
+
+batch_transforms:
+  train: {}
+  inference: {}
+
+instance_transforms:
+  train: {}
+  inference: {}

@@ -1,7 +1,7 @@
 defaults:
   - model: hifigan          
   - writer: cometml
-  - metrics: example        
+  - metrics: empty        
   - datasets: ljspeech      
   - dataloader: example
   - transforms: none
@@ -25,7 +25,7 @@ trainer:
   epoch_len: 500
   device_tensors: ["audio", "mel"]  
   resume_from: null
-  device: auto
+  device: cuda
   override: True
   monitor: "min loss"               
   save_period: 5

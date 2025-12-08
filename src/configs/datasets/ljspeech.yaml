@@ -1,7 +1,7 @@
 
 train:
   _target_: src.datasets.LJSpeechDataset
-  root: /kaggle/working/dla_hw3      
+  root: /kaggle/working/dla_hw3
   segment_size: 8192
   sampling_rate: 22050
   return_text: false
