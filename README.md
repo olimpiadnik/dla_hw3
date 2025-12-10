@@ -42,7 +42,7 @@ All necessary model checkpoints and logs are stored externally (Yandex Disk) and
 
 ```
 python scripts/download_checkpoints.py \
-  --url "https://disk.yandex.ru/d/XXXXXXXXXXXXXX" \
+  --url "https://disk.yandex.ru/d/Y13vly-deqTA6Q" \
   --out-dir .
 ```
 
