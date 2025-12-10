@@ -1,0 +1,4 @@
+
+_target_: src.datasets.CustomDirDataset
+
+root: /path/to/custom_dir  #transcriptions/UtteranceID1.txt ...
