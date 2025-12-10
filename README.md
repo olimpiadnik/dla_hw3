@@ -1,145 +1,130 @@
-# PyTorch Template for DL projects
+# HiFi-GAN Vocoder (DLA HW3, Deep Learning in Audio @ HSE)
 
-<p align="center">
-  <a href="#about">About</a> •
-  <a href="#tutorials">Tutorials</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#how-to-use">How To Use</a> •
-  <a href="#useful-links">Useful Links</a> •
-  <a href="#credits">Credits</a> •
-  <a href="#license">License</a>
-</p>
+This repository contains my **from-scratch implementation of the HiFi-GAN vocoder** for Homework 3 of the *Deep Learning in Audio* course at HSE.
 
-<p align="center">
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/LICENSE">
-   <img src=https://img.shields.io/badge/license-MIT-blue.svg>
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/CITATION.cff">
-   <img src="https://img.shields.io/badge/cite-this%20repo-purple">
-</a>
-</p>
+The project is based on the official  
+[`pytorch_project_template`](https://github.com/Blinorot/pytorch_project_template)  
+and follows its structure: Hydra configs, `train.py` entrypoint, modular `src/` layout, logger abstraction, etc.
 
-## About
+The vocoder is trained on **LJSpeech 1.1** and used as the final waveform synthesizer in a TTS pipeline:
 
-This repository contains a template for [PyTorch](https://pytorch.org/)-based Deep Learning projects.
+> **text → mel-spectrogram (external acoustic model, ESPNet) → waveform (this HiFi-GAN)**
 
-The template utilizes different python-dev techniques to improve code readability. Configuration methods enhance reproducibility and experiments control.
-
-The repository is released as a part of the [HSE DLA course](https://github.com/markovka17/dla), however, can easily be adopted for any DL-task.
-
-This template is the official recommended template for the [EPFL CS-433 ML Course](https://www.epfl.ch/labs/mlo/machine-learning-cs-433/).
-
-> 📖 **If you use this template in your work, please cite this repository or include a reference. Attribution supports the project and encourages continued development.**
-
-## Tutorials
-
-This template utilizes experiment tracking techniques, such as [WandB](https://docs.wandb.ai/) and [Comet ML](https://www.comet.com/docs/v2/), and [Hydra](https://hydra.cc/docs/intro/) for the configuration. It also automatically reformats code and conducts several checks via [pre-commit](https://pre-commit.com/). If you are not familiar with these tools, we advise you to look at the tutorials below:
-
-- [Python Dev Tips](https://github.com/ebezzam/python-dev-tips): information about [Git](https://git-scm.com/doc), [pre-commit](https://pre-commit.com/), [Hydra](https://hydra.cc/docs/intro/), and other stuff for better Python code development. The YouTube recording of the workshop is available [here](https://youtu.be/okxaTuBdDuY).
-
-- [Seminar on R&D Coding 2025](https://youtu.be/PE1zaW5it_A): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with discussion on logging, project-based coding, configuration, and reproducibility. The materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/tree/summer25/day05).
-
-- [Seminar on R&D Coding 2024](https://youtu.be/sEA-Js5ZHxU): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with template discussion and reasoning. It also explains how to work with [WandB](https://docs.wandb.ai/). The seminar materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/blob/main/day03/Seminar_WandB_and_Coding.ipynb).
-
-- [HSE DLA Course Introduction Week](https://github.com/markovka17/dla/tree/2024/week01): combines the two seminars above into one with some updates, including an extra example for [Comet ML](https://www.comet.com/docs/v2/).
-
-- [PyTorch Basics](https://github.com/markovka17/dla/tree/2024/week01/intro_to_pytorch): several notebooks with [PyTorch](https://pytorch.org/docs/stable/index.html) basics and corresponding seminar recordings from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/).
-
-To start working with a template, just click on the `use this template` button.
-
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-
-You can choose any of the branches as a starting point. [Set your choice as the default branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/changing-the-default-branch) in the repository settings. You can also [delete unnecessary branches](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-and-deleting-branches-within-your-repository).
-
-## Examples
-
-> [!IMPORTANT]
-> The main branch leaves some of the code parts empty or fills them with dummy examples, showing just the base structure. The final users can add code required for their own tasks.
-
-You can find examples of this template completed for different tasks in other branches:
-
-- [Image classification](https://github.com/Blinorot/pytorch_project_template/tree/example/image-classification): simple classification problem on [MNIST](https://yann.lecun.com/exdb/mnist/) and [CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html) datasets.
-
-- [ASR](https://github.com/Blinorot/pytorch_project_template/tree/example/asr): template for the automatic speech recognition (ASR) task. Some of the parts (for example, `collate_fn` and beam search for `text_encoder`) are missing for studying purposes of [HSE DLA course](https://github.com/markovka17/dla).
 
 ## Installation
 
-Installation may depend on your task. The general steps are the following:
-
-0. (Optional) Create and activate new environment using [`conda`](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) or `venv` ([`+pyenv`](https://github.com/pyenv/pyenv)).
-
-   a. `conda` version:
-
-   ```bash
-   # create env
-   conda create -n project_env python=PYTHON_VERSION
-
-   # activate env
-   conda activate project_env
-   ```
-
-   b. `venv` (`+pyenv`) version:
-
-   ```bash
-   # create env
-   ~/.pyenv/versions/PYTHON_VERSION/bin/python3 -m venv project_env
-
-   # alternatively, using default python version
-   python3 -m venv project_env
-
-   # activate env
-   source project_env/bin/activate
-   ```
-
-1. Install all required packages
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Install `pre-commit`:
-   ```bash
-   pre-commit install
-   ```
-
-## How To Use
-
-To train a model, run the following command:
+> **Recommended**: use a clean environment (conda/venv/Colab). Kaggle notebooks also work (training was done there).
 
 ```bash
-python3 train.py -cn=CONFIG_NAME HYDRA_CONFIG_ARGUMENTS
+git clone https://github.com/olimpiadnik/dla_hw3.git
+cd dla_hw3
+
+pip install -r requirements.txt
+```
+The requirements.txt contains all the packages needed for:
+	•	training HiFi-GAN,
+	•	logging with Comet ML,
+	•	computing Mel-spectrograms (torchaudio + librosa),
+	•	downloading resources from Yandex Disk (yadisk).
+
+Extra dependencies for full TTS (ESPNet)
+
+For the full TTS pipeline (text → mel using an acoustic model → this vocoder), I use an ESPNet Text2Speech model.
+
+These dependencies are not required for training or for resynthesis mode.
+Install them only if you want to run TTS modes in synthesize.py:
+```
+pip install "espnet==202310" "g2p_en" "phonemizer" "torch_complex"
+```
+All necessary model checkpoints and logs are stored externally (Yandex Disk) and can be downloaded with a single script.
+
+## Download checkpoints from Yandex Disk
+
+```
+python scripts/download_checkpoints.py \
+  --url "https://disk.yandex.ru/d/XXXXXXXXXXXXXX" \
+  --out-dir .
 ```
 
-Where `CONFIG_NAME` is a config from `src/configs` and `HYDRA_CONFIG_ARGUMENTS` are optional arguments.
-
-To run inference (evaluate the model or save predictions):
-
-```bash
-python3 inference.py HYDRA_CONFIG_ARGUMENTS
+After running it, you should see the directory:
+```
+saved/
+  hifigan_baseline/
+    model_best.pth
+    checkpoint-epoch20.pth
+    checkpoint-epoch50.pth
+    config.yaml
+    ...
 ```
 
-## Useful Links:
+## Training
 
-You may find the following links useful:
+Training is performed via train.py and Hydra configs.
 
-- [Report branch](https://github.com/Blinorot/pytorch_project_template/tree/report): Guidelines for writing a scientific report/paper (with an emphasis on DL projects).
+Example command for the final HiFi-GAN model:
+```
+python train.py --config-name hifigan_baseline
+```
 
-- [CLAIRE Template](https://github.com/CLAIRE-Labo/python-ml-research-template): additional template by [EPFL CLAIRE Laboratory](https://www.epfl.ch/labs/claire/) that can be combined with ours to enhance experiments reproducibility via [Docker](https://www.docker.com/).
+## Inference (synthesize.py)
 
-- [Mamba](https://github.com/mamba-org/mamba) and [Poetry](https://python-poetry.org/): alternatives to [Conda](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) and [pip](https://pip.pypa.io/en/stable/installation/) package managers given above.
+The script synthesize.py is the main entrypoint for evaluation and TTS.
+It supports three modes:
+	1.	resynthesize – audio → mel → HiFi-GAN → audio.
+	2.	tts_dataset – CustomDir dataset of texts → ESPNet Text2Speech → mel → HiFi-GAN → audio.
+	3.	tts_single – single text string → ESPNet → mel → HiFi-GAN → audio.
 
-- [Awesome README](https://github.com/matiassingers/awesome-readme): a list of awesome README files for inspiration. Check the basics [here](https://github.com/PurpleBooth/a-good-readme-template).
+Resynthesis mode
 
-## Credits
+Resynthesize ground-truth audio (e.g. from LJSpeech) using the trained vocoder:
+```
+python synthesize.py \
+  --checkpoint-path saved/hifigan_baseline/model_best.pth \
+  --mode resynthesize \
+  --input-audio-dir LJSpeech-1.1/wavs \
+  --output-dir outputs/resynth_ljspeech \
+  --device cuda
+```
+TTS from dataset (tts_dataset)
 
-This repository is based on a heavily modified fork of [pytorch-template](https://github.com/victoresque/pytorch-template) and [asr_project_template](https://github.com/WrathOfGrapes/asr_project_template) repositories.
+TTS evaluatio requires a CustomDirDataset format:
+```
+MyDataset/
+└── transcriptions
+    ├── UtteranceID1.txt
+    ├── UtteranceID2.txt
+    ├── ...
+    └── UtteranceIDn.txt
+```
+```
+python synthesize.py \
+  --checkpoint-path saved/hifigan_baseline/model_best.pth \
+  --mode tts_dataset \
+  --custom-dir /path/to/MyDataset \
+  --output-dir outputs/mydataset_tts \
+  --espnet_model espnet/kan-bayashi_ljspeech_vits \
+  --device cuda
+```
 
-## License
+Single-text TTS (tts_single)
+
+Generate audio from a single text prompt:
+```
+python synthesize.py \
+  --checkpoint-path saved/hifigan_baseline/model_best.pth \
+  --mode tts_single \
+  --text "Dmitri Shostakovich was a Soviet-era Russian composer and pianist..." \
+  --output-path outputs/shostakovich.wav \
+  --espnet_model espnet/kan-bayashi_ljspeech_vits \
+  --device cuda
+```
+
+The repository contains a Colab-ready demo notebook Demo.ipynb that demonstrates resynthesis on a sample subset of LJSpeech (mode=resynthesize), TTS on the external CustomDir dataset (mode=tts_dataset), synthesis of the 5 mandatory MOS sentences (mode=tts_single).
+
+All experiments are logged to Comet ML (project dla_hw3_hifigan)
+
+9. License
+
+The project is distributed under the MIT License. See LICENSE for details.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
