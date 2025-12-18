@@ -20,6 +20,7 @@ git clone https://github.com/olimpiadnik/dla_hw3.git
 cd dla_hw3
 
 pip install -r requirements.txt
+python -m nltk.downloader averaged_perceptron_tagger_eng
 ```
 The requirements.txt contains all the packages needed for:
 	•	training HiFi-GAN,
