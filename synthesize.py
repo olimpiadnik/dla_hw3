@@ -1,15 +1,16 @@
 import argparse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-import soundfile as sf
+import soundfile as sf 
 import torch
+import torch.nn.functional as F
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
 
 import torchaudio
 
-from src.model import HiFiGAN  
+from src.model import HiFiGAN 
 from src.model import MelSpectrogram, MelSpectrogramConfig
 
 def resolve_device(device_str: str) -> torch.device:
@@ -18,15 +19,32 @@ def resolve_device(device_str: str) -> torch.device:
     return torch.device(device_str)
 
 
+def save_wav(path: Path, audio, sr: int):
+
+    if not isinstance(audio, torch.Tensor):
+        audio_t = torch.as_tensor(audio, dtype=torch.float32)
+    else:
+        audio_t = audio.detach().cpu()
+
+    while audio_t.dim() > 1 and audio_t.shape[0] == 1 and audio_t.dim() > 2:
+        audio_t = audio_t.squeeze(0)
+
+    if audio_t.dim() == 1:
+        # [T] -> [1, T]
+        audio_t = audio_t.unsqueeze(0)
+    elif audio_t.dim() == 2:
+        pass
+    else:
+        audio_t = audio_t.reshape(1, -1)
+
+    torchaudio.save(str(path), audio_t, sample_rate=sr)
+
+
 def load_config_and_model(
     checkpoint_path: str,
     config_path: Optional[str],
     device: torch.device,
 ) -> Tuple[torch.nn.Module, MelSpectrogram]:
-    """
-    Загружаем конфиг, инициализируем HiFi-GAN по hydra-конфигу, грузим веса из чекпоинта.
-    Возвращаем (модель, mel-экстрактор).
-    """
     ckpt_path = Path(checkpoint_path)
     if config_path is None:
         config_path = ckpt_path.parent / "config.yaml"
@@ -80,7 +98,6 @@ def resynthesize_directory(
     output_dir: str,
     device: torch.device,
 ):
-
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -94,9 +111,11 @@ def resynthesize_directory(
 
     print(f"Found {len(audio_files)} files. Writing resynth audio to {out_dir}, sr={sr}")
 
+    mel_extractor = mel_extractor.to(device).eval()
+
     for wav_path in audio_files:
         wav, wav_sr = torchaudio.load(str(wav_path))  # [C, T]
-        # моно
+
         if wav.shape[0] > 1:
             wav = wav.mean(dim=0, keepdim=True)
         if wav_sr != sr:
@@ -106,7 +125,7 @@ def resynthesize_directory(
         wav = wav.squeeze(0).unsqueeze(0)  # [1, T]
 
         with torch.no_grad():
-            mel = mel_extractor(wav) 
+            mel = mel_extractor(wav)  # [1, n_mels, Tm]
             if hasattr(model, "generate"):
                 audio_hat = model.generate(mel)
             elif hasattr(model, "generator"):
@@ -115,74 +134,99 @@ def resynthesize_directory(
                 out = model(audio=None, mel=mel)
                 audio_hat = out["audio_hat"]
 
-        audio_hat = audio_hat.squeeze(0).detach().cpu().numpy()
+        audio = audio_hat.squeeze(0).detach().cpu()
         out_path = out_dir / f"{wav_path.stem}.wav"
-        sf.write(out_path, audio_hat, sr)
+        save_wav(out_path, audio, sr)
         print(f"[resynthesize] {wav_path.name} -> {out_path.name}")
-
 
 def load_espnet_tts(model_name: str, device: torch.device):
     try:
         from espnet2.bin.tts_inference import Text2Speech
     except Exception as e:
         raise ImportError(
-            "ESPNet is not installed"
+            "ESPNet is not installed. Install with `pip install espnet espnet_model_zoo`."
         ) from e
 
-
     dev_str = "cuda" if device.type == "cuda" else "cpu"
-
+    print(f"Loading ESPNet TTS model: {model_name}")
     tts = Text2Speech.from_pretrained(
         model_name,
         device=dev_str,
     )
-    tts.eval()
     return tts
 
 
 def texts_to_espnet_mels(
     texts: List[str],
     tts,
+    mel_extractor: MelSpectrogram,
     device: torch.device,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     mels: List[torch.Tensor] = []
     lengths: List[int] = []
 
-    for text in texts:
-        with torch.no_grad():
+    mel_extractor = mel_extractor.to(device).eval()
+
+    with torch.no_grad():
+        for text in texts:
             out_dict = tts(text)
 
-        feat = out_dict.get("feat_gen_denorm")
-        if feat is None:
-            feat = out_dict.get("feat_gen")
-        if feat is None:
-            raise RuntimeError(
-                "ESPNet Text2Speech output has no 'feat_gen' or 'feat_gen_denorm'. "
-                "Check the model or ESPNet version."
-            )
+            feat = None
+            if "feat_gen_denorm" in out_dict:
+                feat = out_dict["feat_gen_denorm"]
+            elif "feat_gen" in out_dict:
+                feat = out_dict["feat_gen"]
 
+            if feat is not None:
+                if not isinstance(feat, torch.Tensor):
+                    feat = torch.as_tensor(feat, dtype=torch.float32, device=device)
+                else:
+                    feat = feat.to(device)
 
-        if feat.dim() != 2:
-            raise RuntimeError(f"Unexpected feat shape from ESPNet: {feat.shape}")
-        feat = feat.to(device)
-        feat = feat.transpose(0, 1)  # -> [C, T]
+                if feat.dim() == 3:
+                    feat = feat.squeeze(0)
+                if feat.dim() != 2:
+                    raise RuntimeError(f"Unexpected feat shape from ESPNet: {feat.shape}")
 
-        mels.append(feat)
-        lengths.append(feat.shape[1])
+                mel = feat.transpose(0, 1)  # [T, C] -> [C, T]
+
+            else:
+                if "wav" not in out_dict:
+                    raise RuntimeError(
+                        "ESPNet Text2Speech output has no 'feat_gen', 'feat_gen_denorm' or 'wav'."
+                    )
+                wav = out_dict["wav"]
+                if not isinstance(wav, torch.Tensor):
+                    wav = torch.as_tensor(wav, dtype=torch.float32)
+                if wav.dim() > 1:
+                    wav = wav.squeeze(0)
+
+                wav = wav.to(device).unsqueeze(0) 
+                mel_full = mel_extractor(wav)  
+                mel = mel_full[0]  
+
+            mels.append(mel)
+            lengths.append(mel.shape[-1])
 
     max_len = max(lengths)
     C = mels[0].shape[0]
     B = len(mels)
 
-    mel_batch = torch.zeros(B, C, max_len, device=device)
-    for i, (mel, L) in enumerate(zip(mels, lengths)):
-        mel_batch[i, :, :L] = mel[:, :L]
+    padded = []
+    for mel, L in zip(mels, lengths):
+        if L < max_len:
+            pad = max_len - L
+            pad_value = float(mel.min().item())
+            mel_padded = F.pad(mel, (0, pad), value=pad_value)
+        else:
+            mel_padded = mel
+        padded.append(mel_padded)
 
+    mel_batch = torch.stack(padded, dim=0)  
     mel_lengths = torch.tensor(lengths, device=device, dtype=torch.long)
     return mel_batch, mel_lengths
 
 def load_text_dataset(custom_dir: str) -> List[Tuple[str, str]]:
-
     root = Path(custom_dir)
     trans_dir = root / "transcriptions"
     if not trans_dir.exists():
@@ -205,6 +249,7 @@ def load_text_dataset(custom_dir: str) -> List[Tuple[str, str]]:
 def tts_dataset(
     model: torch.nn.Module,
     tts,
+    mel_extractor: MelSpectrogram,
     custom_dir: str,
     output_dir: str,
     device: torch.device,
@@ -222,7 +267,7 @@ def tts_dataset(
     for utt_id, text in items:
         print(f"[tts_dataset] {utt_id}: '{text}'")
 
-        mels, mel_lengths = texts_to_espnet_mels([text], tts, device)  # [1, C, Tm]
+        mels, _ = texts_to_espnet_mels([text], tts, mel_extractor, device)  # [1, C, Tm]
         with torch.no_grad():
             if hasattr(model, "generate"):
                 audio_hat = model.generate(mels)
@@ -232,28 +277,29 @@ def tts_dataset(
                 out = model(audio=None, mel=mels)
                 audio_hat = out["audio_hat"]
 
-        audio = audio_hat.squeeze(0).detach().cpu().numpy()
+        audio = audio_hat.squeeze(0).detach().cpu()
         out_path = out_dir / f"{utt_id}.wav"
-        sf.write(out_path, audio, sr)
+        save_wav(out_path, audio, sr)
         print(f"[tts_dataset] saved: {out_path}")
 
 
 def tts_single(
     model: torch.nn.Module,
     tts,
+    mel_extractor: MelSpectrogram,
     text: str,
     output_path: str,
     device: torch.device,
 ):
-
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
     sr = 22050
     if hasattr(model, "mel_transform") and hasattr(model.mel_transform, "config"):
         sr = getattr(model.mel_transform.config, "sr", sr)
 
     print(f"[tts_single] text: '{text}'")
-    mels, _ = texts_to_espnet_mels([text], tts, device)  # [1, C, Tm]
+    mels, _ = texts_to_espnet_mels([text], tts, mel_extractor, device)  # [1, C, Tm]
     with torch.no_grad():
         if hasattr(model, "generate"):
             audio_hat = model.generate(mels)
@@ -263,10 +309,9 @@ def tts_single(
             out = model(audio=None, mel=mels)
             audio_hat = out["audio_hat"]
 
-    audio = audio_hat.squeeze(0).detach().cpu().numpy()
-    sf.write(str(output_path), audio, sr)
+    audio = audio_hat.squeeze(0).detach().cpu()
+    save_wav(output_path, audio, sr)
     print(f"[tts_single] saved: {output_path}")
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -363,7 +408,6 @@ def main():
         config_path=args.config_path,
         device=device,
     )
-
     if args.mode == "resynthesize":
         resynthesize_directory(
             model=model,
@@ -374,13 +418,13 @@ def main():
         )
         return
 
-    print(f"Loading ESPNet TTS model: {args.espnet_model}")
     tts = load_espnet_tts(args.espnet_model, device=device)
 
     if args.mode == "tts_dataset":
         tts_dataset(
             model=model,
             tts=tts,
+            mel_extractor=mel_extractor,
             custom_dir=args.custom_dir,
             output_dir=args.output_dir,
             device=device,
@@ -389,6 +433,7 @@ def main():
         tts_single(
             model=model,
             tts=tts,
+            mel_extractor=mel_extractor,
             text=args.text,
             output_path=args.output_path,
             device=device,
