@@ -126,6 +126,7 @@ All experiments are logged to Comet ML (project dla_hw3_hifigan)
 
 9. License
 
-The project is distributed under the MIT License. See LICENSE for details.
-
+The project is distributed under the MIT License.
+Copyright (c) 2024 Maxim Afanasev (olimpiadnik)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
+
